@@ -25,6 +25,10 @@ import { Dialog } from './components/dialog/Dialog'
 import { formatPrismToken } from './utils/prism'
 import { Signature } from './components/signature/Signature'
 import { debounce, nextTick, scrollIntoView } from './utils'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+import { IndexeddbPersistence } from 'y-indexeddb'
+import { v3 as uuidv3, v4 as uuidv4 } from 'uuid'
 
 window.onload = function () {
   const isApple =
@@ -32,38 +36,121 @@ window.onload = function () {
 
   // 1. 初始化编辑器
   const container = document.querySelector<HTMLDivElement>('.editor')!
+  const headerVals: IElement[] = [
+    {
+      id: uuidv3('canvas-editor-crdt:header:0', 'e4f8180b-0914-420c-be26-fed6734d3008'),
+      value: '第一人民医院',
+      size: 32,
+      rowFlex: RowFlex.CENTER
+    },
+    {
+      id: uuidv3('canvas-editor-crdt:header:1', 'e4f8180b-0914-420c-be26-fed6734d3008'),
+      value: '\n门诊病历',
+      size: 19,
+      rowFlex: RowFlex.CENTER
+    },
+    {
+      id: uuidv3('canvas-editor-crdt:header:2', 'e4f8180b-0914-420c-be26-fed6734d3008'),
+      value: '\n',
+      type: ElementType.SEPARATOR
+    }
+  ]
+  const footerVals: IElement[] = [
+    {
+      id: uuidv4(),
+      value: 'canvas-editor',
+      size: 12
+    },
+  ]
   const instance = new Editor(
     container,
     {
-      header: [
-        {
-          value: '第一人民医院',
-          size: 32,
-          rowFlex: RowFlex.CENTER
-        },
-        {
-          value: '\n门诊病历',
-          size: 18,
-          rowFlex: RowFlex.CENTER
-        },
-        {
-          value: '\n',
-          type: ElementType.SEPARATOR
-        }
-      ],
+      header: headerVals,
       main: <IElement[]>data,
-      footer: [
-        {
-          value: 'canvas-editor',
-          size: 12
-        }
-      ]
+      footer: footerVals,
     },
     options
   )
-  console.log('实例: ', instance)
+  console.log('实例: ', instance, uuidv4(), uuidv3('canvas-editor-crdt:header', 'e4f8180b-0914-420c-be26-fed6734d3008'))
   // cypress使用
   Reflect.set(window, 'editor', instance)
+
+  if (!instance) return
+
+  // 测试CRDT
+  const doc = new Y.Doc()
+  const yjsProvider = new WebsocketProvider(
+    'ws://*.*.*.*:1234/', 'canvas-editor-crdt', doc
+  )
+  const indexeddbProvider = new IndexeddbPersistence('canvas-editor-crdt', doc)
+  indexeddbProvider.on('synced', () => {
+    console.log('yjs content from the database is loaded')
+  })
+
+  yjsProvider.on('status', (event: { status: string}) => {
+    console.log(event.status)
+  })
+
+  const yArray = doc.getArray<IElement>('header')
+  yArray.observeDeep(() => {
+    // console.log('dav333 event', yarrayEvent)//yarrayEvent.target yarrayEvent.changes.delta
+  })
+
+  doc.on('update', (update, orgin) => {
+    console.log('dav333 update is', update)
+    if (!orgin || orgin.doc.clientID !== doc.clientID) {
+      return
+    }
+    Y.applyUpdate(doc, update)
+    // instance.command.executeSelectAll()
+    // instance.command.executeBackspace()
+    const yElementList = yArray.toArray()
+    // console.log('dav333 after update', yElementList)
+    // instance.command.executeInsertElementList(yElementList)
+    for(let i = 0; i < yElementList.length; ++i) {
+      const id = yElementList[i].id as string
+      const properties = Object.assign({}, yElementList[i])
+      delete properties.id
+      instance.command.executeUpdateElementById({id, properties})
+    }
+  })
+
+  document.addEventListener('keyup', debounce(() => {
+    const data = instance.command.getValue()
+    console.log('当前编辑器数据: ', data)
+    const { data: { header } } = data
+
+    if (header && header?.length > 0) {
+      const cp0 = Object.assign({}, header[0])
+      cp0.value = '完成😍'
+      delete cp0.id
+      console.log('dav333 cp0 is', cp0)
+
+      const cp1 = Object.assign({}, header[1])
+      cp1.value = '测试🚗'
+      delete cp1.id
+      console.log('dav333 cp1 is', cp1)
+
+      const cpid0 = headerVals[0].id as string
+      const cpid1 = headerVals[1].id as string
+
+      yArray.delete(0, yArray.length)
+      yArray.insert(0, [{
+        ...cp0,
+        id: cpid0,
+      }, {
+        ...cp1,
+        id: cpid1,
+      }])
+
+      instance.command.executeUpdateElementById({id: cpid1, properties: cp1})
+    }
+  }, 200))
+
+  instance.eventBus.on('contentChange', () => {
+    const data = instance.command.getValue()
+    console.log('当前编辑器数据变动: ', data)
+  })
 
   // 菜单弹窗销毁
   window.addEventListener(
@@ -423,6 +510,8 @@ window.onload = function () {
   }
   tablePanel.onclick = function () {
     // 应用选择
+    console.log('dav333 rowIndex', rowIndex)
+    console.log('dav333 colIndex', colIndex)
     instance.command.executeInsertTable(rowIndex, colIndex)
     recoveryTable()
   }

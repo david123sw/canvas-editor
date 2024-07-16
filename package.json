@@ -46,12 +46,14 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "postinstall": "simple-git-hooks",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "CRDT": "PORT=1234 node ./node_modules/y-websocket/bin/server.js"
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^10.0.1",
     "@types/node": "16.18.96",
     "@types/prismjs": "^1.26.0",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "5.62.0",
     "@typescript-eslint/parser": "5.62.0",
     "cypress": "13.6.0",
@@ -62,10 +64,15 @@
     "vite": "^2.4.2",
     "vite-plugin-css-injected-by-js": "^2.1.1",
     "vitepress": "1.0.0-beta.6",
-    "vue": "^3.2.45"
+    "vue": "^3.2.45",
+    "y-indexeddb": "^9.0.12"
   },
   "dependencies": {
-    "prismjs": "^1.27.0"
+    "js-md5": "^0.8.3",
+    "prismjs": "^1.27.0",
+    "uuid": "^10.0.0",
+    "y-websocket": "^2.0.3",
+    "yjs": "^13.6.18"
   },
   "simple-git-hooks": {
     "pre-commit": "npm run lint && npm run type:check",

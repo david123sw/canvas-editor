@@ -785,6 +785,7 @@ export class CommandAdapt {
   }
 
   public insertTable(row: number, col: number) {
+    console.log('dav333 insertTable', row, col)
     const isReadonly = this.draw.isReadonly()
     if (isReadonly) return
     const activeControl = this.control.getActiveControl()
@@ -2280,14 +2281,15 @@ export class CommandAdapt {
   }
 
   public updateElementById(payload: IUpdateElementByIdOption) {
-    function getElementIndexById(elementList: IElement[]): number {
+    function getElementIndexById(elementList: IElement[]): number[] {
+      const ids = []
       for (let e = 0; e < elementList.length; e++) {
         const element = elementList[e]
         if (element.id === payload.id) {
-          return e
+          ids.push(e)
         }
       }
-      return -1
+      return ids
     }
     // 优先正文再页眉页脚
     const getElementListFnList = [
@@ -2298,15 +2300,32 @@ export class CommandAdapt {
     for (const getElementList of getElementListFnList) {
       const elementList = getElementList.call(this.draw)
       const elementIndex = getElementIndexById(elementList)
-      if (~elementIndex) {
-        elementList[elementIndex] = {
-          ...elementList[elementIndex],
-          ...payload.properties
+      if (elementIndex.length) {
+        let updated = false
+        let updateedElementIndex = -1
+        let ignoredElementCount = 0
+        for (let i = 0; i < elementIndex.length; ++i) {
+          const id = elementIndex[i]
+          if ('\u200B' === elementList[id].value) {
+            ignoredElementCount++
+            continue
+          }
+          if (!updated) {
+            elementList[id] = {
+              ...elementList[id],
+              ...payload.properties,
+            }
+            updated = true
+            updateedElementIndex = id
+          }
+          formatElementList([elementList[id]], {
+            isHandleFirstElement: false,
+            editorOptions: this.options
+          })
         }
-        formatElementList([elementList[elementIndex]], {
-          isHandleFirstElement: false,
-          editorOptions: this.options
-        })
+        if (updateedElementIndex > -1) {
+          this.draw.spliceElementList(elementList, updateedElementIndex + 1, elementIndex.length - 1 - ignoredElementCount)
+        }
         this.draw.render({
           isSetCursor: false
         })

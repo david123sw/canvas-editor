@@ -2253,6 +2253,7 @@ export class Draw {
   }
 
   public render(payload?: IDrawOption) {
+    console.log('dav333 render', payload)
     const { header, footer } = this.options
     const {
       isSubmitHistory = true,
